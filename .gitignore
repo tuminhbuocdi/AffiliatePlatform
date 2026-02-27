@@ -1,0 +1,32 @@
+.vs/
+
+# Visual Studio user-specific files
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# VS indexing/cache
+*.vsidx
+FileContentIndex/
+DocumentLayout.json
+DocumentLayout.backup.json
+
+# Build outputs
+bin/
+obj/
+
+# Rider / ReSharper
+.idea/
+_ReSharper*/
+*.DotSettings.user
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Configuration files with sensitive data
+**/appsettings.json
+**/appsettings.*.json
+!**/appsettings.example.json
+!**/appsettings.template.json
