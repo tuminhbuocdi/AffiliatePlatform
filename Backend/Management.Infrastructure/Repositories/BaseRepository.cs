@@ -6,12 +6,12 @@ namespace Management.Infrastructure.Repositories;
 
 public class BaseRepository : IDisposable
 {
-    protected readonly DbConnectionFactory _factory;
+    protected readonly IDbConnectionFactory _factory;
     private bool _disposed = false;
 
     protected virtual string ConnectionName => "Default";
 
-    public BaseRepository(DbConnectionFactory factory)
+    public BaseRepository(IDbConnectionFactory factory)
     {
         _factory = factory;
     }

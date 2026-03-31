@@ -4,7 +4,7 @@ using System.Data;
 
 namespace Management.Infrastructure.Db;
 
-public class DbConnectionFactory
+public class DbConnectionFactory : IDbConnectionFactory
 {
     private readonly IConfiguration _config;
 

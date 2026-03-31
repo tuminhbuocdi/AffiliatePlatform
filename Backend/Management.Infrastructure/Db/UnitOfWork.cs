@@ -11,7 +11,7 @@ public class UnitOfWork : IDisposable
     public IDbConnection Connection => _conn;
     public IDbTransaction Transaction => _tran;
 
-    public UnitOfWork(DbConnectionFactory factory, string connectionName = "Default")
+    public UnitOfWork(IDbConnectionFactory factory, string connectionName = "Default")
     {
         _conn = factory.Create(connectionName);
         _conn.Open();

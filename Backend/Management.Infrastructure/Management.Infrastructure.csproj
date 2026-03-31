@@ -8,17 +8,15 @@
 
   <ItemGroup>
     <Compile Remove="Cache\**" />
-    <Compile Remove="External\**" />
     <EmbeddedResource Remove="Cache\**" />
-    <EmbeddedResource Remove="External\**" />
     <None Remove="Cache\**" />
-    <None Remove="External\**" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Dapper" Version="2.1.66" />
     <PackageReference Include="Microsoft.Data.SqlClient" Version="6.1.4" />
     <PackageReference Include="Microsoft.Extensions.Configuration" Version="10.0.3" />
+    <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="10.0.3" />
   </ItemGroup>
 
   <ItemGroup>

@@ -1,9 +1,9 @@
 
 using Management.Api.Extensions;
 using Management.Application.Auth;
+using Microsoft.Extensions.FileProviders;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
-using Management.Api.Extensions;
 
 namespace Management.Backend
 {
@@ -29,7 +29,7 @@ namespace Management.Backend
             builder.Services.AddSwaggerGen();
             builder.Services.AddHttpClient();
             builder.Services.AddInfrastructure();
-
+                
             var jwtKey = builder.Configuration["Jwt:Key"];
             if (string.IsNullOrWhiteSpace(jwtKey) || Encoding.UTF8.GetBytes(jwtKey).Length < 32)
             {
@@ -64,6 +64,14 @@ namespace Management.Backend
 
             app.UseSwagger();
             app.UseSwaggerUI();
+
+            var mediaCacheRoot = Path.Combine(AppContext.BaseDirectory, "App_Data", "MediaCache");
+            Directory.CreateDirectory(mediaCacheRoot);
+            app.UseStaticFiles(new StaticFileOptions
+            {
+                FileProvider = new PhysicalFileProvider(mediaCacheRoot),
+                RequestPath = "/media-cache",
+            });
 
             app.UseCors("frontend");
 

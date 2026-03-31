@@ -9,13 +9,10 @@
   <ItemGroup>
     <Compile Remove="DTOs\**" />
     <Compile Remove="Interfaces\**" />
-    <Compile Remove="Services\**" />
     <EmbeddedResource Remove="DTOs\**" />
     <EmbeddedResource Remove="Interfaces\**" />
-    <EmbeddedResource Remove="Services\**" />
     <None Remove="DTOs\**" />
     <None Remove="Interfaces\**" />
-    <None Remove="Services\**" />
   </ItemGroup>
 
 
@@ -27,6 +24,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Management.Domain\Management.Domain.csproj" />
+    <ProjectReference Include="..\Management.Infrastructure\Management.Infrastructure.csproj" />
   </ItemGroup>
 
 

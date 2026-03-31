@@ -1,0 +1,78 @@
+html,
+body,
+#app {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  display: block;
+  background: #f6f6f6;
+  overflow: hidden;
+}
+
+html {
+  overflow: hidden;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+.btn {
+  border: 1px solid #f26f3b;
+  background: #f26f3b;
+  color: #fff;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.btn.secondary {
+  background: #fff;
+  color: #b54416;
+  border-color: rgba(242, 111, 59, 0.35);
+}
+
+.btn.danger {
+  background: #fff;
+  border-color: #ffd2d2;
+  color: #b42318;
+}
+
+.btn.tiny {
+  padding: 6px 8px;
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.input,
+.textarea,
+select.input {
+  width: 100%;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: #fff;
+  font-size: 13px;
+  outline: none;
+}
+
+.input.small,
+.textarea.small {
+  padding: 6px 8px;
+  font-size: 12px;
+}
+
+.input:focus,
+.textarea:focus,
+select.input:focus {
+  border-color: #f26f3b;
+}
