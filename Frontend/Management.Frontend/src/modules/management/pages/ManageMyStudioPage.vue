@@ -97,6 +97,20 @@
               <div class="lbl">Lead (ms)</div>
               <input v-model.number="tapLeadMs" class="input" type="number" :disabled="tapRunning" />
             </label>
+
+            <label class="field">
+              <div class="lbl">Build eff row</div>
+              <div class="radio-row">
+                <label class="radio-item">
+                  <input v-model="tapBuildEffRow" type="radio" value="1" :disabled="tapRunning" />
+                  <span>1 row</span>
+                </label>
+                <label class="radio-item">
+                  <input v-model="tapBuildEffRow" type="radio" value="2" :disabled="tapRunning" />
+                  <span>2 row</span>
+                </label>
+              </div>
+            </label>
           </div>
 
           <div class="tap-body">
@@ -280,6 +294,7 @@ const tapHotkey = ref('C')
 const tapOffsetMs = ref(0)
 const tapPreRollMs = ref(100)
 const tapLeadMs = ref(80)
+const tapBuildEffRow = ref<'1' | '2'>('1')
 
 const assFontOptions = [
   'Arial',
@@ -1158,6 +1173,64 @@ const currentTapLabel = computed(() => {
   if (tapMode.value === 'line') return tapLyricLines.value[tapIndex.value] ?? ''
   return tapWordMeta.value[tapIndex.value]?.w ?? ''
 })
+
+type TapLineObj = {
+  lineIndex: number
+  startSec: number
+  endSec: number
+  text: string
+}
+
+type TapKaraokeLineObj = {
+  lineIndex: number
+  startSec: number
+  endSec: number
+  karaokeText: string
+}
+
+const getTapLineObjs = (leadSec = 0, preRollSec = 0) => {
+  const lines = tapLyricLines.value
+  const items = tapItems.value
+  const out = items
+    .map((it, idx) => {
+      const text = lines[idx]
+      if (!text) return null
+      const startSec = Math.max(0, it.start - leadSec - preRollSec)
+      const endSec = Math.max(startSec, it.end - leadSec)
+      return { lineIndex: idx, startSec, endSec, text }
+    })
+    .filter(Boolean) as TapLineObj[]
+
+  return out
+}
+
+const buildTapDisplayLineObjs = (lineObjs: TapLineObj[]) => {
+  return lineObjs.map((x) => ({ ...x, text: String(x.text ?? '').replace(/\{/g, '').replace(/\}/g, '') }))
+}
+
+const applyTapTwoRowKaraokeWait = (lineObjs: TapKaraokeLineObj[]) => {
+  if (tapBuildEffRow.value !== '2') return lineObjs
+
+  const paired: TapKaraokeLineObj[] = []
+  for (let i = 0; i < lineObjs.length; i += 2) {
+    const first = lineObjs[i]
+    if (!first) continue
+    paired.push(first)
+
+    const second = lineObjs[i + 1]
+    if (!second) continue
+
+    const waitCs = Math.max(1, Math.round((first.endSec - first.startSec) * 100))
+    paired.push({
+      ...second,
+      startSec: first.startSec,
+      endSec: Math.max(second.endSec, first.startSec + 0.01),
+      karaokeText: `{\\k${waitCs}}${second.karaokeText}`,
+    })
+  }
+
+  return paired
+}
 
 const isTapActiveWord = (li: number, wi: number) => {
   if (tapMode.value === 'line') return tapIndex.value === li
@@ -2277,16 +2350,7 @@ const buildBasicAssForSaving = () => {
   const epsSec = 0.01
 
   if (tapMode.value === 'line') {
-    const lines = tapLyricLines.value
-    const lineObjs = items
-      .map((it, idx) => {
-        const text = lines[idx]
-        if (!text) return null
-        const startSec = Math.max(0, it.start)
-        const endSec = Math.max(startSec, it.end)
-        return { lineIndex: idx, startSec, endSec, text }
-      })
-      .filter(Boolean) as Array<{ lineIndex: number; startSec: number; endSec: number; text: string }>
+    const lineObjs = getTapLineObjs(0, 0)
 
     for (let i = 0; i < lineObjs.length - 1; i++) {
       const cur = lineObjs[i]
@@ -2294,6 +2358,8 @@ const buildBasicAssForSaving = () => {
       const maxEnd = Math.max(cur.startSec, next.startSec - epsSec)
       if (cur.endSec > maxEnd) cur.endSec = maxEnd
     }
+
+    const displayLineObjs = buildTapDisplayLineObjs(lineObjs)
 
     const header = [
       '[Script Info]',
@@ -2309,11 +2375,10 @@ const buildBasicAssForSaving = () => {
       'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
     ].join('\n')
 
-    const events = lineObjs
+    const events = displayLineObjs
       .map((o) => {
         const endSec = o.endSec <= o.startSec ? o.startSec + epsSec : o.endSec
-        const text = String(o.text ?? '').replace(/\{/g, '').replace(/\}/g, '')
-        return `Dialogue: 0,${formatAssTime(o.startSec)},${formatAssTime(endSec)},Default,,0,0,0,,${text}`
+        return `Dialogue: 0,${formatAssTime(o.startSec)},${formatAssTime(endSec)},Default,,0,0,0,,${o.text}`
       })
       .join('\n')
 
@@ -2331,7 +2396,7 @@ const buildBasicAssForSaving = () => {
     groups.set(meta.line, arr)
   }
 
-  const lineObjs = Array.from(groups.entries())
+  const rawLineObjs = Array.from(groups.entries())
     .sort((a, b) => a[0] - b[0])
     .map(([lineIndex, lineItems]) => {
       const valid = lineItems.filter((x) => (x.end ?? 0) > (x.start ?? 0))
@@ -2393,21 +2458,10 @@ const buildAss = () => {
   const selectedPreset = getPresetById(assPresetId.value) ?? getCurrentAssPresetSnapshot()
 
   if (tapMode.value === 'line') {
-    const lines = tapLyricLines.value
-    const items = tapItems.value
     const epsSec = 0.01
     const leadSec = Math.max(0, Number(tapLeadMs.value || 0) / 1000)
     const preRollSec = Math.max(0, Number(tapPreRollMs.value || 0) / 1000)
-
-    const lineObjs = items
-      .map((it, idx) => {
-        const text = lines[idx]
-        if (!text) return null
-        const startSec = Math.max(0, it.start - leadSec - preRollSec)
-        const endSec = Math.max(startSec, it.end - leadSec)
-        return { lineIndex: idx, startSec, endSec, text }
-      })
-      .filter(Boolean) as Array<{ lineIndex: number; startSec: number; endSec: number; text: string }>
+    const lineObjs = getTapLineObjs(leadSec, preRollSec)
 
     for (let i = 0; i < lineObjs.length - 1; i++) {
       const cur = lineObjs[i]
@@ -2415,6 +2469,8 @@ const buildAss = () => {
       const maxEnd = Math.max(cur.startSec, next.startSec - epsSec)
       if (cur.endSec > maxEnd) cur.endSec = maxEnd
     }
+
+    const displayLineObjs = buildTapDisplayLineObjs(lineObjs)
 
     if (selectedPreset?.templateAssText && String(selectedPreset.templateAssText).trim()) {
       const styleName = (selectedPreset.templateStyleName ?? '').trim() || 'Default'
@@ -2426,11 +2482,10 @@ const buildAss = () => {
       })
       const baseTemplate = removeExistingKaraokeFromTemplateAss(overriddenTemplate)
 
-      const dialogueLines = lineObjs
+      const dialogueLines = displayLineObjs
         .map((o) => {
           const endSec = o.endSec <= o.startSec ? o.startSec + epsSec : o.endSec
-          const text = String(o.text ?? '').replace(/\{/g, '').replace(/\}/g, '')
-          return `Dialogue: 0,${formatAssTime(o.startSec)},${formatAssTime(endSec)},${styleName},,0,0,0,,${text}`
+          return `Dialogue: 0,${formatAssTime(o.startSec)},${formatAssTime(endSec)},${styleName},,0,0,0,,${o.text}`
         })
         .join('\n')
 
@@ -2457,11 +2512,10 @@ const buildAss = () => {
       'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text',
     ].join('\n')
 
-    const events = lineObjs
+    const events = displayLineObjs
       .map((o) => {
         const endSec = o.endSec <= o.startSec ? o.startSec + epsSec : o.endSec
-        const text = String(o.text ?? '').replace(/\{/g, '').replace(/\}/g, '')
-        return `Dialogue: 0,${formatAssTime(o.startSec)},${formatAssTime(endSec)},${styleName},,0,0,0,,${text}`
+        return `Dialogue: 0,${formatAssTime(o.startSec)},${formatAssTime(endSec)},${styleName},,0,0,0,,${o.text}`
       })
       .join('\n')
 
@@ -2490,7 +2544,7 @@ const buildAss = () => {
       groups.set(meta.line, arr)
     }
 
-    const lineObjs = Array.from(groups.entries())
+    const rawLineObjs = Array.from(groups.entries())
       .sort((a, b) => a[0] - b[0])
       .map(([lineIndex, lineItems]) => {
         const valid = lineItems.filter((x) => (x.end ?? 0) > (x.start ?? 0))
@@ -2524,12 +2578,15 @@ const buildAss = () => {
 
         return { lineIndex, startSec, endSec, karaokeText }
       })
-      .filter(Boolean) as Array<{ lineIndex: number; startSec: number; endSec: number; karaokeText: string }>
+      .filter(Boolean) as TapKaraokeLineObj[]
+
+    const lineObjs = applyTapTwoRowKaraokeWait(rawLineObjs)
 
     const epsSec = 0.01
     for (let i = 0; i < lineObjs.length - 1; i++) {
       const cur = lineObjs[i]
       const next = lineObjs[i + 1]
+      if (tapBuildEffRow.value === '2' && Math.abs(next.startSec - cur.startSec) < 0.0001) continue
       const maxEnd = Math.max(cur.startSec, next.startSec - epsSec)
       if (cur.endSec > maxEnd) cur.endSec = maxEnd
     }
@@ -2583,7 +2640,7 @@ const buildAss = () => {
     groups.set(meta.line, arr)
   }
 
-  const lineObjs = Array.from(groups.entries())
+  const rawBaseHiLineObjs = Array.from(groups.entries())
     .sort((a, b) => a[0] - b[0])
     .map(([lineIndex, lineItems]) => {
       const valid = lineItems.filter((x) => (x.end ?? 0) > (x.start ?? 0))
@@ -2629,15 +2686,30 @@ const buildAss = () => {
     })
     .filter(Boolean) as Array<{ lineIndex: number; startSec: number; endSec: number; baseText: string; hiText: string }>
 
+  const baseHiLineObjs = tapBuildEffRow.value !== '2'
+    ? rawBaseHiLineObjs
+    : rawBaseHiLineObjs.flatMap((o, idx, arr) => {
+      if (idx % 2 === 0) return [o]
+      const first = arr[idx - 1]
+      if (!first) return [o]
+      const waitCs = Math.max(1, Math.round((first.endSec - first.startSec) * 100))
+      return [{
+        ...o,
+        startSec: first.startSec,
+        hiText: `{\\alpha&HFF&\\k${waitCs}} ${o.hiText.replace(/^\{\\alpha&HFF&\}/, '')}`,
+      }]
+    })
+
   const epsSec = 0.01
-  for (let i = 0; i < lineObjs.length - 1; i++) {
-    const cur = lineObjs[i]
-    const next = lineObjs[i + 1]
+  for (let i = 0; i < baseHiLineObjs.length - 1; i++) {
+    const cur = baseHiLineObjs[i]
+    const next = baseHiLineObjs[i + 1]
+    if (tapBuildEffRow.value === '2' && Math.abs(next.startSec - cur.startSec) < 0.0001) continue
     const maxEnd = Math.max(cur.startSec, next.startSec - epsSec)
     if (cur.endSec > maxEnd) cur.endSec = maxEnd
   }
 
-  const events = lineObjs
+  const events = baseHiLineObjs
     .map((o) => {
       const endSec = o.endSec <= o.startSec ? o.startSec + epsSec : o.endSec
       const baseLine = `Dialogue: 0,${formatAssTime(o.startSec)},${formatAssTime(endSec)},${styleBaseName},,0,0,0,,${o.baseText}`
