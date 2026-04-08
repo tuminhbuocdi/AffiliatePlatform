@@ -10,6 +10,17 @@ namespace Management.Api.Controllers
     [Route("api/extension/products")]
     public class ExtensionProductsController : ControllerBase
     {
+        public class UpdateAffiliateLinkRequest
+        {
+            public string? AffiliateLink { get; set; }
+            public string? ProductLink { get; set; }
+            public string? SubId1 { get; set; }
+            public string? SubId2 { get; set; }
+            public string? SubId3 { get; set; }
+            public string? SubId4 { get; set; }
+            public string? SubId5 { get; set; }
+        }
+
         private readonly IProductRepository _products;
         private readonly ProductAffiliateLinkRepository _productAffiliateLinks;
 
@@ -17,6 +28,45 @@ namespace Management.Api.Controllers
         {
             _products = products;
             _productAffiliateLinks = productAffiliateLinks;
+        }
+
+        [HttpPut("{externalItemId}/affiliate-link")]
+        public async Task<IActionResult> UpdateAffiliateLink([FromRoute] string externalItemId, [FromBody] UpdateAffiliateLinkRequest req)
+        {
+            if (string.IsNullOrWhiteSpace(externalItemId))
+            {
+                return BadRequest("ExternalItemId is required.");
+            }
+
+            var existing = await _productAffiliateLinks.GetByExternalItemIdAsync(externalItemId.Trim());
+            if (existing == null)
+            {
+                return NotFound("ProductAffiliateLink not found.");
+            }
+
+            var model = new ProductAffiliateLink
+            {
+                ExternalItemId = existing.ExternalItemId,
+                ProductLink = string.IsNullOrWhiteSpace(req.ProductLink) ? existing.ProductLink : req.ProductLink.Trim(),
+                SubId1 = req.SubId1 == null ? existing.SubId1 : (string.IsNullOrWhiteSpace(req.SubId1) ? null : req.SubId1.Trim()),
+                SubId2 = req.SubId2 == null ? existing.SubId2 : (string.IsNullOrWhiteSpace(req.SubId2) ? null : req.SubId2.Trim()),
+                SubId3 = req.SubId3 == null ? existing.SubId3 : (string.IsNullOrWhiteSpace(req.SubId3) ? null : req.SubId3.Trim()),
+                SubId4 = req.SubId4 == null ? existing.SubId4 : (string.IsNullOrWhiteSpace(req.SubId4) ? null : req.SubId4.Trim()),
+                SubId5 = req.SubId5 == null ? existing.SubId5 : (string.IsNullOrWhiteSpace(req.SubId5) ? null : req.SubId5.Trim()),
+                AffiliateLink = req.AffiliateLink == null ? existing.AffiliateLink : (string.IsNullOrWhiteSpace(req.AffiliateLink) ? null : req.AffiliateLink.Trim()),
+                CreatedAt = existing.CreatedAt,
+                UpdatedAt = DateTime.UtcNow,
+            };
+
+            await _productAffiliateLinks.UpsertAsync(model);
+
+            return Ok(new
+            {
+                success = true,
+                externalItemId = model.ExternalItemId,
+                affiliateLink = model.AffiliateLink,
+                hasAffiliateLink = !string.IsNullOrWhiteSpace(model.AffiliateLink),
+            });
         }
 
         [HttpPost("import-and-affiliate")]
@@ -55,10 +105,11 @@ namespace Management.Api.Controllers
                 {
                     var product = BuildProductFromImportItem(item);
                     var saved = await _products.UpsertByShopeeItemIdAsync(product);
+                    ProductAffiliateLink? existingAffiliate = null;
 
                     if (!string.IsNullOrWhiteSpace(saved.ExternalItemId) && !string.IsNullOrWhiteSpace(saved.ProductLink))
                     {
-                        var existingAffiliate = await _productAffiliateLinks.GetByExternalItemIdAsync(saved.ExternalItemId);
+                        existingAffiliate = await _productAffiliateLinks.GetByExternalItemIdAsync(saved.ExternalItemId);
                         if (existingAffiliate == null)
                         {
                             await _productAffiliateLinks.UpsertAsync(new ProductAffiliateLink
@@ -77,6 +128,8 @@ namespace Management.Api.Controllers
                         externalItemId = saved.ExternalItemId,
                         name = saved.Name,
                         productLink = saved.ProductLink,
+                        affiliateLink = existingAffiliate?.AffiliateLink,
+                        hasAffiliateLink = !string.IsNullOrWhiteSpace(existingAffiliate?.AffiliateLink),
                     });
                 }
                 catch (Exception ex)
